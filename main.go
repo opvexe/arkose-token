@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/tebeka/selenium"
 	"github.com/tebeka/selenium/chrome"
@@ -28,17 +27,35 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var chromeArgs = []string{
-	"--no-sandbox",
-	"--disable-gpu",
-	"--disable-dev-shm-usage",
-	"--disable-blink-features=AutomationControlled",
-	"--incognito",
-	"--headless=new",
-}
+var (
+	proxy = selenium.Proxy{
+		Type: selenium.Manual,
+		HTTP: "http://hahaha:xixixi@202.182.71.232:17575", //   "http://username:password@proxy-host:proxy-port",
+	}
+)
 
 func main() {
 	h := gin.Default()
+	chromeArgs := []string{
+		"--no-sandbox",
+		"--disable-gpu",
+		"--disable-dev-shm-usage",
+		"--disable-blink-features=AutomationControlled",
+		"--incognito",
+		"--headless=new",
+		//"--proxy-server=" + proxy.HTTP,
+	}
+
+	webDriver, err := selenium.NewRemote(selenium.Capabilities{
+		"chromeOptions": chrome.Capabilities{
+			Args:            chromeArgs,
+			ExcludeSwitches: []string{"enable-automation"},
+		},
+	}, "http://127.0.0.1:9515")
+
+	if err != nil {
+		log.Panic("selenium: new remote web driver err: ", err)
+	}
 
 	h.GET("/", func(c *gin.Context) {
 		c.File("index.html")
@@ -49,20 +66,9 @@ func main() {
 	})
 
 	h.GET("/token", func(ctx *gin.Context) {
-		webDriver, err := selenium.NewRemote(selenium.Capabilities{
-			"chromeOptions": chrome.Capabilities{
-				Args:            chromeArgs,
-				ExcludeSwitches: []string{"enable-automation"},
-			},
-		}, "http://127.0.0.1:9515")
-
-		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
-			return
-		}
-
-		if err := webDriver.Get("https://tms.im/f.html"); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+		if err := webDriver.Get("http://127.0.0.0:8080/"); err != nil {
+			log.Printf("selenium: get web err: %s", err)
+			ctx.JSON(http.StatusInternalServerError, err)
 			return
 		}
 
@@ -74,22 +80,24 @@ func main() {
 	`
 		_, err = webDriver.ExecuteScript(initJS, nil)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+			log.Printf("selenium: execute script err: %s", err)
+			ctx.JSON(http.StatusInternalServerError, err)
 			return
 		}
 
 		element, err := webDriver.FindElement(selenium.ByID, "enforcement-trigger")
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+			log.Printf("selenium: find element err: %s", err)
+			ctx.JSON(http.StatusInternalServerError, err)
 			return
 		}
 		element.Click()
 
-		time.Sleep(1 * time.Second)
 		token, _ := webDriver.ExecuteScript("return token;", nil)
 
 		if token == "" {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, fmt.Errorf("IP 被封"))
+			log.Printf("selenium: token is empty")
+			ctx.JSON(http.StatusInternalServerError, fmt.Errorf("IP 被封"))
 			return
 		}
 

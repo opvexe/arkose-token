@@ -1,0 +1,8 @@
+services:
+  arkose-token:
+    container_name: arkose-token
+    image: askaigo/arkose-token:v1.0.0
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+
