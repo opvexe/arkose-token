@@ -39,6 +39,11 @@ var chromeArgs = []string{
 
 func main() {
 	h := gin.Default()
+
+	h.GET("/", func(c *gin.Context) {
+		c.File("index.html")
+	})
+
 	h.Any("/health", func(ctx *gin.Context) {
 		ctx.Writer.WriteHeader(http.StatusNoContent)
 	})
@@ -82,6 +87,11 @@ func main() {
 
 		time.Sleep(1 * time.Second)
 		token, _ := webDriver.ExecuteScript("return token;", nil)
+
+		if token == "" {
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, fmt.Errorf("IP 被封"))
+			return
+		}
 
 		ctx.JSON(http.StatusOK, struct {
 			Token interface{} `json:"token"`
